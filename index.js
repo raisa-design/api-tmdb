@@ -100,10 +100,99 @@ server.post("/filmes", async (req, res) => {
 });
 
 server.get("/filmes", async (req, res) => {
+  //Receber o número da página, quando não é enviado o número da página é atribuido página 1
+  const { page = 1 } = req.query;
+
+  //limite de registros em cada página
+  const limit = 10;
+
+  //variável com o numero da última página
+  var lastPage = 1;
+
+  //contar a quantidade de registro no banco de dados
+  const countResult = await pool.query("SELECT COUNT(*) FROM filmes");
+  const countFilmes = parseInt(countResult.rows[0].count, 10);
+
+  // Acessa o IF quando encontrar registro no banco de dados
+
+  if (countFilmes !== 0) {
+    //calcular a última página
+    lastPage = Math.ceil(countFilmes / limit);
+  } else {
+    //Pausar o processamento e retornar a mensagem de erro
+    return res.status(400).json({ mensagem: "Erro: Nenhum filme encontrado" });
+  }
+
+  //Indicar quais colunas recuperar
+  attributes: [
+    ["id", "titulo", "tmdb_link", "direcao", "roteirista", "artistas"],
+  ];
+
+  //ordenar os registros pela coluna ida na forma crescente
+  order: [["id", "ASC"]];
+
+  //Calcular a partir de qual registro deve retornar   e o limite de registros
+  offset: Number(page * limit - limit);
+  limit: limit;
+
   try {
-    const result = await pool.query("SELECT * FROM filmes");
+    // Contar a quantidade de registros no banco de dados
+    const countResult = await pool.query("SELECT COUNT(*) FROM filmes");
+    const countFilmes = parseInt(countResult.rows[0].count, 10);
+
+    // Calcular a última página
+    if (countFilmes !== 0) {
+      lastPage = Math.ceil(countFilmes / limit);
+    } else {
+      // Pausar o processamento e retornar a mensagem de erro
+      return res
+        .status(400)
+        .json({ mensagem: "Erro: Nenhum filme encontrado" });
+    }
+
+    // Calcular o offset
+    const offset = (page - 1) * limit;
+
+    // Buscar os filmes com paginação e ordenação
+    const result = await pool.query(
+      "SELECT * FROM filmes ORDER BY id ASC LIMIT $1 OFFSET $2",
+      [limit, offset]
+    );
+
     const filmes = result.rows;
-    return res.json(filmes);
+
+    // Acessa o IF se encontrar o registro no banco de dados
+    if (filmes.length > 0) {
+      //Criar objeto com as informações para paginação
+      const pagination = {
+        //caminho
+        path: "/filmes",
+        //pagina atual
+        page,
+        //URL da página anterior
+        prev_page_url: page - 1 >= 1 ? page - 1 : false,
+        //URL da página posterior
+        next_page_url:
+          Number(page) + Number(1) > lastPage
+            ? false
+            : Number(page) + Number(1),
+      };
+
+      //Pausar o processamento e retornar os dados em formato de objeto
+      return res.json({
+        filmes,
+        pagination,
+        //ultima pagina
+        lastPage,
+        //quantidadede registros
+        total: countFilmes,
+      });
+    } else {
+      //Pausar o processamento e retornar a mensagem de erro
+      return res
+        .status(400)
+        .json({ mensagem: "Erro: Nenhum filme encontrado" });
+    }
   } catch (error) {
     console.error("Erro ao buscar filmes:", error);
     return res
