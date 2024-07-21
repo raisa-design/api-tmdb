@@ -1,6 +1,7 @@
 const express = require("express");
 const axios = require("axios");
 const { Pool } = require("pg");
+const { z } = require("zod");
 const server = express();
 
 const TMDB_API_KEY = "79b3ceee03442ea90980fe372e0b8fdc";
@@ -15,16 +16,27 @@ const pool = new Pool({
 
 server.use(express.json());
 
+const dataSchema = z.object({
+  titulo: z.string().min(1, "Título é obrigatório"),
+});
+
 server.get("/", (req, res) => {
   return res.json({ mensagem: "Hello World" });
 });
 
-server.post("/filme", async (req, res) => {
-  const { titulo } = req.body;
+server.post("/filmes", async (req, res) => {
+  // validação zod
 
-  if (!titulo) {
-    return res.status(400).json({ mensagem: "Título é obrigatório" });
+  const validation = dataSchema.safeParse(req.body);
+
+  if (!validation.success) {
+    return res.status(400).json({
+      mensagem: "Dados inválidos, forneça o titulo",
+      erros: validation.error.errors,
+    });
   }
+
+  const { titulo } = validation.data;
 
   try {
     const response = await axios.get(
@@ -84,6 +96,19 @@ server.post("/filme", async (req, res) => {
   } catch (error) {
     console.error(error);
     return res.status(500).json({ mensagem: "Erro ao buscar filme" });
+  }
+});
+
+server.get("/filmes", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM filmes");
+    const filmes = result.rows;
+    return res.json(filmes);
+  } catch (error) {
+    console.error("Erro ao buscar filmes:", error);
+    return res
+      .status(500)
+      .json({ mensagem: "Erro ao buscar filmes", erro: error.message });
   }
 });
 
