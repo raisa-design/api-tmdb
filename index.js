@@ -99,6 +99,26 @@ server.post("/filmes", async (req, res) => {
   }
 });
 
+server.get("/filmes/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query("SELECT * FROM filmes WHERE id = $1", [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ mensagem: "Filme não encontrado" });
+    }
+
+    const filme = result.rows[0];
+    return res.json(filme);
+  } catch (error) {
+    console.error("Erro ao buscar filme:", error);
+    return res
+      .status(500)
+      .json({ mensagem: "Erro ao buscar filme", erro: error.message });
+  }
+});
+
 server.get("/filmes", async (req, res) => {
   //Receber o número da página, quando não é enviado o número da página é atribuido página 1
   const { page = 1 } = req.query;
