@@ -1,20 +1,12 @@
 const express = require("express");
 const axios = require("axios");
-const { Pool } = require("pg");
 const { z } = require("zod");
 const jwt = require("jsonwebtoken");
+const pool = require("./src/database/connection");
 const server = express();
 
 const TMDB_API_KEY = "79b3ceee03442ea90980fe372e0b8fdc";
 const JWT_SECRET = "your_jwt_secret_key"; // Substitua por uma chave secreta forte
-
-const pool = new Pool({
-  user: "postgres",
-  host: "localhost",
-  database: "movies",
-  password: "123456",
-  port: 5432,
-});
 
 server.use(express.json());
 
@@ -197,7 +189,9 @@ server.get("/filmes", authenticateToken, async (req, res) => {
   try {
     // Contar a quantidade de registros no banco de dados
     const countResult = await pool.query("SELECT COUNT(*) FROM filmes");
+    console.log(countResult);
     const countFilmes = parseInt(countResult.rows[0].count, 10);
+    console.log(countFilmes);
 
     // Calcular a última página
     if (countFilmes !== 0) {
@@ -263,6 +257,8 @@ server.get("/filmes", authenticateToken, async (req, res) => {
 server.listen(3000, () => {
   console.log("Servidor está funcionando...");
 });
+
+module.exports = server;
 
 // const jwt = require("jsonwebtoken");
 // const bcrypt = require("bcrypt");
