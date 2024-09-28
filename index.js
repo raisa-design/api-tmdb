@@ -5,6 +5,8 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const pool = require("./src/database/connection");
 const server = express();
+const cheerio = require("cheerio");
+const request = require("request");
 
 const TMDB_API_KEY = "79b3ceee03442ea90980fe372e0b8fdc";
 const JWT_SECRET = "your_jwt_secret_key"; // Substitua por uma chave secreta forte
@@ -387,8 +389,39 @@ server.get(
     }
   }
 );
+// Rota para scrapping
+server.post("/scrapper", async (req, res) => {
+  try {
+    const url = "https://www.adorocinema.com/noticias/filmes/";
+    request(url, (error, response, html) => {
+      if (!error && response.statusCode == 200) {
+        const $ = cheerio.load(html);
 
-server.post("/scrapper", async (req, res) => {});
+        const noticias = [];
+        $(".news-card")
+          .slice(0, 10)
+          .each((index, element) => {
+            const titulo = $(element).find(".meta-title-link").text().trim();
+            const linkDaImagem = $(element).find(".thumbnail-img").attr("src");
+            const linkDoConteudo = $(element)
+              .find(".meta-title-link")
+              .attr("href");
+            noticias.push({
+              titulo,
+              linkDaImagem,
+              linkDoConteudo: `https://www.adorocinema.com${linkDoConteudo}`,
+            });
+          });
+        return res.json({
+          noticias,
+        });
+      }
+    });
+  } catch (error) {
+    console.error("Erro ao fazer scrapping:", error);
+    return res.status(500).json({ mensagem: "Erro ao fazer scrapping" });
+  }
+});
 
 server.listen(3000, () => {
   console.log("Servidor está funcionando...");
