@@ -36,12 +36,17 @@ const authenticateToken = (req, res, next) => {
 
 // Rota para registrar um novo usuário
 server.post("/register", async (req, res) => {
-  const { nome, email, senha } = req.body;
+  const { nome, email, senha, role } = req.body;
 
-  if (!nome || !email || !senha) {
+  if (!nome || !email || !senha || !role) {
     return res
       .status(400)
       .json({ mensagem: "Todos os campos são obrigatórios" });
+  }
+
+  // Verifica se o role é válido
+  if (!["admin", "editor", "cliente"].includes(role)) {
+    return res.status(400).json({ mensagem: "Função inválida" });
   }
 
   try {
@@ -58,14 +63,15 @@ server.post("/register", async (req, res) => {
     const hashedSenha = await bcrypt.hash(senha, saltRounds);
 
     // Inserir o novo usuário no banco de dados
-    const queryText = `INSERT INTO users (nome, email, senha) VALUES ($1, $2, $3) RETURNING *`;
-    const queryValues = [nome, email, hashedSenha];
+    const queryText = `INSERT INTO users (nome, email, senha, role) VALUES ($1, $2, $3, $4) RETURNING *`;
+    const queryValues = [nome, email, hashedSenha, role];
     const novoUsuario = await pool.query(queryText, queryValues);
 
     // Gerar token JWT para o novo usuário
     const user = {
       id: novoUsuario.rows[0].id,
       email: novoUsuario.rows[0].email,
+      role: novoUsuario.rows[0].role,
     };
     const accessToken = jwt.sign(user, JWT_SECRET, { expiresIn: "1h" });
 
@@ -108,6 +114,7 @@ server.post("/login", async (req, res) => {
     const user = {
       id: usuario.id,
       email: usuario.email,
+      role: usuario.role,
     };
 
     const accessToken = jwt.sign(user, JWT_SECRET, { expiresIn: "1h" });
@@ -118,210 +125,270 @@ server.post("/login", async (req, res) => {
   }
 });
 
+// Middleware para verificar permissões
+const authorize = (roles) => {
+  return (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ mensagem: "Permissão negada" });
+    }
+    next();
+  };
+};
+
 server.get("/", (req, res) => {
   return res.json({ mensagem: "Hello World" });
 });
 
-// Rota protegida para adicionar filmes
-server.post("/filmes", authenticateToken, async (req, res) => {
-  // validação zod
-  const validation = dataSchema.safeParse(req.body);
+// Rota protegida
 
-  if (!validation.success) {
-    return res.status(400).json({
-      mensagem: "Dados inválidos, forneça o titulo",
-      erros: validation.error.errors,
-    });
-  }
+server.post(
+  "/filmes",
+  authenticateToken,
+  authorize(["admin"]),
+  async (req, res) => {
+    // validação zod
 
-  const { titulo } = validation.data;
+    const validation = dataSchema.safeParse(req.body);
 
-  try {
-    const response = await axios.get(
-      `https://api.themoviedb.org/3/search/movie`,
-      {
-        params: {
-          api_key: TMDB_API_KEY,
-          query: titulo,
-        },
-      }
-    );
-
-    const filmes = response.data.results;
-
-    if (filmes.length === 0) {
-      return res.status(404).json({ mensagem: "Filme não encontrado" });
+    if (!validation.success) {
+      return res.status(400).json({
+        mensagem: "Dados inválidos, forneça o titulo",
+        erros: validation.error.errors,
+      });
     }
 
-    const filme = filmes[0];
+    const { titulo } = validation.data;
 
-    const detalhes = await axios.get(
-      `https://api.themoviedb.org/3/movie/${filme.id}`,
-      {
-        params: {
-          api_key: TMDB_API_KEY,
-          append_to_response: "credits",
-        },
+    try {
+      const response = await axios.get(
+        `https://api.themoviedb.org/3/search/movie`,
+        {
+          params: {
+            api_key: TMDB_API_KEY,
+            query: titulo,
+          },
+        }
+      );
+
+      const filmes = response.data.results;
+
+      if (filmes.length === 0) {
+        return res.status(404).json({ mensagem: "Filme não encontrado" });
       }
-    );
 
-    const diretores = detalhes.data.credits.crew.filter(
-      (member) => member.job === "Director"
-    );
-    const roteiristas = detalhes.data.credits.crew.filter(
-      (member) => member.job === "Screenplay" || member.job === "Writer"
-    );
-    const artistas = detalhes.data.credits.cast.slice(0, 5);
+      const filme = filmes[0];
 
-    const tmdbLink = `https://www.themoviedb.org/movie/${filme.id}`;
+      const detalhes = await axios.get(
+        `https://api.themoviedb.org/3/movie/${filme.id}`,
+        {
+          params: {
+            api_key: TMDB_API_KEY,
+            append_to_response: "credits",
+          },
+        }
+      );
 
-    const queryText = `
+      const diretores = detalhes.data.credits.crew.filter(
+        (member) => member.job === "Director"
+      );
+      const roteiristas = detalhes.data.credits.crew.filter(
+        (member) => member.job === "Screenplay" || member.job === "Writer"
+      );
+      const artistas = detalhes.data.credits.cast.slice(0, 5);
+
+      const tmdbLink = `https://www.themoviedb.org/movie/${filme.id}`;
+
+      const queryText = `
     INSERT INTO filmes (titulo, tmdb_link, direcao, roteirista, artistas)
     VALUES ($1, $2, $3, $4, $5) RETURNING *
   `;
-    const queryValues = [
-      filme.title,
-      tmdbLink,
-      diretores.map((d) => d.name).join(", "),
-      roteiristas.map((r) => r.name).join(", "),
-      artistas.map((a) => a.name).join(", "),
-    ];
+      const queryValues = [
+        filme.title,
+        tmdbLink,
+        diretores.map((d) => d.name).join(", "),
+        roteiristas.map((r) => r.name).join(", "),
+        artistas.map((a) => a.name).join(", "),
+      ];
 
-    const result = await pool.query(queryText, queryValues);
-    const savedFilm = result.rows[0];
+      const result = await pool.query(queryText, queryValues);
+      const savedFilm = result.rows[0];
 
-    return res.json(savedFilm);
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ mensagem: "Erro ao buscar filme" });
+      return res.json(savedFilm);
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({ mensagem: "Erro ao buscar filme" });
+    }
   }
-});
+);
 
 // Rota protegida para obter detalhes de um filme
-server.get("/filmes/:id", authenticateToken, async (req, res) => {
-  const { id } = req.params;
+server.get(
+  "/filmes/:id",
+  authenticateToken,
+  authorize(["admin", "editor", "cliente"]),
+  async (req, res) => {
+    const { id } = req.params;
 
-  try {
-    const result = await pool.query("SELECT * FROM filmes WHERE id = $1", [id]);
+    try {
+      const result = await pool.query("SELECT * FROM filmes WHERE id = $1", [
+        id,
+      ]);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ mensagem: "Filme não encontrado" });
+      if (result.rows.length === 0) {
+        return res.status(404).json({ mensagem: "Filme não encontrado" });
+      }
+
+      const filme = result.rows[0];
+      return res.json(filme);
+    } catch (error) {
+      console.error("Erro ao buscar filme:", error);
+      return res
+        .status(500)
+        .json({ mensagem: "Erro ao buscar filme", erro: error.message });
     }
-
-    const filme = result.rows[0];
-    return res.json(filme);
-  } catch (error) {
-    console.error("Erro ao buscar filme:", error);
-    return res
-      .status(500)
-      .json({ mensagem: "Erro ao buscar filme", erro: error.message });
   }
-});
+);
+
+// Rota protegida para editar um filme (admin e editor podem editar)
+server.put(
+  "/filmes/:id",
+  authenticateToken,
+  authorize(["admin", "editor"]),
+  async (req, res) => {
+    const { id } = req.params;
+    const { titulo } = req.body;
+
+    try {
+      const result = await pool.query(
+        "UPDATE filmes SET titulo = $1 WHERE id = $2",
+        [titulo, id]
+      );
+
+      if (result.rowCount === 0) {
+        return res.status(404).json({ mensagem: "Filme não encontrado" });
+      }
+
+      return res.json({ mensagem: "Filme atualizado com sucesso" });
+    } catch (error) {
+      console.error("Erro ao editar filme:", error);
+      return res.status(500).json({ mensagem: "Erro ao editar filme" });
+    }
+  }
+);
 
 // Rota protegida para obter filmes com paginação
-server.get("/filmes", authenticateToken, async (req, res) => {
-  //Receber o número da página, quando não é enviado o número da página é atribuido página 1
-  const { page = 1 } = req.query;
+server.get(
+  "/filmes",
+  authenticateToken,
+  authorize(["admin", "editor", "cliente"]),
+  async (req, res) => {
+    //Receber o número da página, quando não é enviado o número da página é atribuido página 1
+    const { page = 1 } = req.query;
 
-  //limite de registros em cada página
-  const limit = 10;
+    //limite de registros em cada página
+    const limit = 10;
 
-  //variável com o numero da última página
-  var lastPage = 1;
+    //variável com o numero da última página
+    var lastPage = 1;
 
-  //contar a quantidade de registro no banco de dados
-  const countResult = await pool.query("SELECT COUNT(*) FROM filmes");
-  const countFilmes = parseInt(countResult.rows[0].count, 10);
-
-  // Acessa o IF quando encontrar registro no banco de dados
-
-  if (countFilmes !== 0) {
-    //calcular a última página
-    lastPage = Math.ceil(countFilmes / limit);
-  } else {
-    //Pausar o processamento e retornar a mensagem de erro
-    return res.status(400).json({ mensagem: "Erro: Nenhum filme encontrado" });
-  }
-
-  //Indicar quais colunas recuperar
-  attributes: [
-    ["id", "titulo", "tmdb_link", "direcao", "roteirista", "artistas"],
-  ];
-
-  //ordenar os registros pela coluna ida na forma crescente
-  order: [["id", "ASC"]];
-
-  //Calcular a partir de qual registro deve retornar e o limite de registros
-  offset: Number(page * limit - limit);
-  limit: limit;
-
-  try {
-    // Contar a quantidade de registros no banco de dados
+    //contar a quantidade de registro no banco de dados
     const countResult = await pool.query("SELECT COUNT(*) FROM filmes");
-    console.log(countResult);
     const countFilmes = parseInt(countResult.rows[0].count, 10);
-    console.log(countFilmes);
 
-    // Calcular a última página
+    // Acessa o IF quando encontrar registro no banco de dados
+
     if (countFilmes !== 0) {
+      //calcular a última página
       lastPage = Math.ceil(countFilmes / limit);
-    } else {
-      // Pausar o processamento e retornar a mensagem de erro
-      return res
-        .status(400)
-        .json({ mensagem: "Erro: Nenhum filme encontrado" });
-    }
-
-    // Calcular o offset
-    const offset = (page - 1) * limit;
-
-    // Buscar os filmes com paginação e ordenação
-    const result = await pool.query(
-      "SELECT * FROM filmes ORDER BY id ASC LIMIT $1 OFFSET $2",
-      [limit, offset]
-    );
-
-    const filmes = result.rows;
-
-    // Acessa o IF se encontrar o registro no banco de dados
-    if (filmes.length > 0) {
-      //Criar objeto com as informações para paginação
-      const pagination = {
-        //caminho
-        path: "/filmes",
-        //pagina atual
-        page,
-        //URL da página anterior
-        prev_page_url: page - 1 >= 1 ? page - 1 : false,
-        //URL da página posterior
-        next_page_url:
-          Number(page) + Number(1) > lastPage
-            ? false
-            : Number(page) + Number(1),
-      };
-
-      //Pausar o processamento e retornar os dados em formato de objeto
-      return res.json({
-        filmes,
-        pagination,
-        //ultima pagina
-        lastPage,
-        //quantidadede registros
-        total: countFilmes,
-      });
     } else {
       //Pausar o processamento e retornar a mensagem de erro
       return res
         .status(400)
         .json({ mensagem: "Erro: Nenhum filme encontrado" });
     }
-  } catch (error) {
-    console.error("Erro ao buscar filmes:", error);
-    return res
-      .status(500)
-      .json({ mensagem: "Erro ao buscar filmes", erro: error.message });
+
+    //Indicar quais colunas recuperar
+    attributes: [
+      ["id", "titulo", "tmdb_link", "direcao", "roteirista", "artistas"],
+    ];
+
+    //ordenar os registros pela coluna ida na forma crescente
+    order: [["id", "ASC"]];
+
+    //Calcular a partir de qual registro deve retornar e o limite de registros
+    offset: Number(page * limit - limit);
+    limit: limit;
+
+    try {
+      // Contar a quantidade de registros no banco de dados
+      const countResult = await pool.query("SELECT COUNT(*) FROM filmes");
+      console.log(countResult);
+      const countFilmes = parseInt(countResult.rows[0].count, 10);
+      console.log(countFilmes);
+
+      // Calcular a última página
+      if (countFilmes !== 0) {
+        lastPage = Math.ceil(countFilmes / limit);
+      } else {
+        // Pausar o processamento e retornar a mensagem de erro
+        return res
+          .status(400)
+          .json({ mensagem: "Erro: Nenhum filme encontrado" });
+      }
+
+      // Calcular o offset
+      const offset = (page - 1) * limit;
+
+      // Buscar os filmes com paginação e ordenação
+      const result = await pool.query(
+        "SELECT * FROM filmes ORDER BY id ASC LIMIT $1 OFFSET $2",
+        [limit, offset]
+      );
+
+      const filmes = result.rows;
+
+      // Acessa o IF se encontrar o registro no banco de dados
+      if (filmes.length > 0) {
+        //Criar objeto com as informações para paginação
+        const pagination = {
+          //caminho
+          path: "/filmes",
+          //pagina atual
+          page,
+          //URL da página anterior
+          prev_page_url: page - 1 >= 1 ? page - 1 : false,
+          //URL da página posterior
+          next_page_url:
+            Number(page) + Number(1) > lastPage
+              ? false
+              : Number(page) + Number(1),
+        };
+
+        //Pausar o processamento e retornar os dados em formato de objeto
+        return res.json({
+          filmes,
+          pagination,
+          //ultima pagina
+          lastPage,
+          //quantidadede registros
+          total: countFilmes,
+        });
+      } else {
+        //Pausar o processamento e retornar a mensagem de erro
+        return res
+          .status(400)
+          .json({ mensagem: "Erro: Nenhum filme encontrado" });
+      }
+    } catch (error) {
+      console.error("Erro ao buscar filmes:", error);
+      return res
+        .status(500)
+        .json({ mensagem: "Erro ao buscar filmes", erro: error.message });
+    }
   }
-});
+);
+
+server.post("/scrapper", async (req, res) => {});
 
 server.listen(3000, () => {
   console.log("Servidor está funcionando...");
