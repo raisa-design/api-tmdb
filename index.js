@@ -7,6 +7,7 @@ const pool = require("./src/database/connection");
 const server = express();
 const cheerio = require("cheerio");
 const request = require("request");
+const UserController = require("./src/controllers/UserController");
 
 const TMDB_API_KEY = "79b3ceee03442ea90980fe372e0b8fdc";
 const JWT_SECRET = "your_jwt_secret_key"; // Substitua por uma chave secreta forte
@@ -37,52 +38,7 @@ const authenticateToken = (req, res, next) => {
 };
 
 // Rota para registrar um novo usuário
-server.post("/register", async (req, res) => {
-  const { nome, email, senha, role } = req.body;
-
-  if (!nome || !email || !senha || !role) {
-    return res
-      .status(400)
-      .json({ mensagem: "Todos os campos são obrigatórios" });
-  }
-
-  // Verifica se o role é válido
-  if (!["admin", "editor", "cliente"].includes(role)) {
-    return res.status(400).json({ mensagem: "Função inválida" });
-  }
-
-  try {
-    // Verificar se o email já está em uso
-    const result = await pool.query("SELECT * FROM users WHERE email = $1", [
-      email,
-    ]);
-    if (result.rows.length > 0) {
-      return res.status(400).json({ mensagem: "Email já está em uso" });
-    }
-
-    // Hash da senha
-    const saltRounds = 10;
-    const hashedSenha = await bcrypt.hash(senha, saltRounds);
-
-    // Inserir o novo usuário no banco de dados
-    const queryText = `INSERT INTO users (nome, email, senha, role) VALUES ($1, $2, $3, $4) RETURNING *`;
-    const queryValues = [nome, email, hashedSenha, role];
-    const novoUsuario = await pool.query(queryText, queryValues);
-
-    // Gerar token JWT para o novo usuário
-    const user = {
-      id: novoUsuario.rows[0].id,
-      email: novoUsuario.rows[0].email,
-      role: novoUsuario.rows[0].role,
-    };
-    const accessToken = jwt.sign(user, JWT_SECRET, { expiresIn: "1h" });
-
-    return res.status(201).json({ accessToken });
-  } catch (error) {
-    console.error("Erro ao registrar usuário:", error);
-    return res.status(500).json({ mensagem: "Erro ao registrar usuário" });
-  }
-});
+server.post("/register", async (req, res) => UserController.register(req, res));
 
 // Rota de login para gerar o token JWT
 server.post("/login", async (req, res) => {
