@@ -41,47 +41,7 @@ const authenticateToken = (req, res, next) => {
 server.post("/register", async (req, res) => UserController.register(req, res));
 
 // Rota de login para gerar o token JWT
-server.post("/login", async (req, res) => {
-  // Em um cenário real, você deve verificar o usuário no banco de dados
-  const { email, senha } = req.body;
-
-  if (!email || !senha) {
-    return res.status(400).json({ mensagem: "Email e senha são obrigatórios" });
-  }
-
-  try {
-    //verificar se o usuário existe
-    const result = await pool.query("SELECT * FROM users WHERE email = $1", [
-      email,
-    ]);
-
-    if (result.rows.length === 0) {
-      return res.status(401).json({ mensagem: "Credenciais inválidas" });
-    }
-
-    const usuario = result.rows[0];
-
-    // Verificar a senha
-    const senhaValida = await bcrypt.compare(senha, usuario.senha);
-
-    if (!senhaValida) {
-      return res.status(401).json({ mensagem: "Credenciais inválidas" });
-    }
-
-    // Gerar token JWT
-    const user = {
-      id: usuario.id,
-      email: usuario.email,
-      role: usuario.role,
-    };
-
-    const accessToken = jwt.sign(user, JWT_SECRET, { expiresIn: "1h" });
-    return res.json({ accessToken });
-  } catch (error) {
-    console.error("Erro ao fazer login:", error);
-    return res.status(500).json({ mensagem: "Erro ao fazer login" });
-  }
-});
+server.post("/login", async (req, res) => UserController.login(req, res));
 
 // Middleware para verificar permissões
 const authorize = (roles) => {

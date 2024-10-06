@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const UserModel = require("../models/UserModel");
 
 const JWT_SECRET = "your_jwt_secret_key";
+const userModel = new UserModel();
 
 class UserController {
   async register(req, res) {
@@ -47,5 +48,35 @@ class UserController {
     return res.status(500).json({ mensagem: "Erro ao registrar usuário" });
   }
   }
+  
+    async login(req, res) {
+        
+        try {
+            const { email, senha } = req.body;
+
+            if (!email || !senha) {
+              return res.status(400).json({ mensagem: "Email e senha são obrigatórios" });
+            }    
+        
+            // Verificar se o email e senha estão corretos
+            const usuario = await userModel.userLogin(email, senha);
+            if (!usuario) {
+                return res.status(400).json({ mensagem: "Email ou senha incorretos" });
+            }
+        
+            // Gerar token JWT
+            const user = {
+                id: usuario.id,
+                email: usuario.email,
+                role: usuario.role,
+            };
+        
+            const accessToken = jwt.sign(user, JWT_SECRET, { expiresIn: "1h" });
+            return res.json({ accessToken });
+        } catch (error) {
+            console.error("Erro ao fazer login:", error);
+            return res.status(500).json({ mensagem: "Erro ao fazer login" });
+        }
+        }   
 }
 module.exports = new UserController();

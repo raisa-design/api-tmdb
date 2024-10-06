@@ -1,4 +1,5 @@
 const pool = require("../database/connection");
+const bcrypt = require("bcrypt");
 
 class UserModel {
     async addUser(email, nome, hashedSenha, role) {
@@ -18,5 +19,24 @@ class UserModel {
             return false;
         }
     }
+    async userLogin(email, senha) {
+        const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+
+        if (result.rows.length === 0) {
+            return null; // Retorna null se o usuário não for encontrado
+        }
+
+        const usuario = result.rows[0];
+
+        // Verificar a senha
+        const senhaValida = await bcrypt.compare(senha, usuario.senha);
+
+        if (!senhaValida) {
+            return null; // Retorna null se a senha for inválida
+        }
+
+        return usuario;
+    }
+    
 }
 module.exports = UserModel;
