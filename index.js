@@ -423,6 +423,40 @@ server.post("/scrapper", async (req, res) => {
   }
 });
 
+server.post("/scrapperOneNews", async (req, res) => {
+  try {
+    const url =
+      "https://www.adorocinema.com/noticias/filmes/noticia-1000104374/";
+    request(url, (error, response, html) => {
+      if (!error && response.statusCode == 200) {
+        const $ = cheerio.load(html);
+
+        const noticia = [];
+        const titulo = $(".titlebar-title-lg").text().trim();
+        const dataHora = $(".titlebar-subtile").find("time").attr("datetime");
+        const autora = $(".author-name").text().trim();
+        let texto = "";
+        $(".bo-p").each((index, element) => {
+          texto += $(element).text().trim() + "\n";
+        });
+
+        noticia.push({
+          titulo,
+          dataHora,
+          autora,
+          texto,
+        });
+        return res.json({
+          noticia,
+        });
+      }
+    });
+  } catch (error) {
+    console.error("Erro ao fazer scrapping:", error);
+    return res.status(500).json({ mensagem: "Erro ao fazer scrapping" });
+  }
+});
+
 server.listen(3000, () => {
   console.log("Servidor está funcionando...");
 });
