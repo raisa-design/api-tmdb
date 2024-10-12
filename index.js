@@ -8,15 +8,13 @@ const server = express();
 const cheerio = require("cheerio");
 const request = require("request");
 const UserController = require("./src/controllers/UserController");
+const MovieController = require("./src/controllers/MovieController");
+const ScrapperController = require("./src/controllers/ScrapperController");
 
 const TMDB_API_KEY = "79b3ceee03442ea90980fe372e0b8fdc";
 const JWT_SECRET = "your_jwt_secret_key"; // Substitua por uma chave secreta forte
 
 server.use(express.json());
-
-const dataSchema = z.object({
-  titulo: z.string().min(1, "Título é obrigatório"),
-});
 
 // Middleware para verificar o token JWT
 const authenticateToken = (req, res, next) => {
@@ -63,80 +61,7 @@ server.post(
   "/filmes",
   authenticateToken,
   authorize(["admin"]),
-  async (req, res) => {
-    // validação zod
-
-    const validation = dataSchema.safeParse(req.body);
-
-    if (!validation.success) {
-      return res.status(400).json({
-        mensagem: "Dados inválidos, forneça o titulo",
-        erros: validation.error.errors,
-      });
-    }
-
-    const { titulo } = validation.data;
-
-    try {
-      const response = await axios.get(
-        `https://api.themoviedb.org/3/search/movie`,
-        {
-          params: {
-            api_key: TMDB_API_KEY,
-            query: titulo,
-          },
-        }
-      );
-
-      const filmes = response.data.results;
-
-      if (filmes.length === 0) {
-        return res.status(404).json({ mensagem: "Filme não encontrado" });
-      }
-
-      const filme = filmes[0];
-
-      const detalhes = await axios.get(
-        `https://api.themoviedb.org/3/movie/${filme.id}`,
-        {
-          params: {
-            api_key: TMDB_API_KEY,
-            append_to_response: "credits",
-          },
-        }
-      );
-
-      const diretores = detalhes.data.credits.crew.filter(
-        (member) => member.job === "Director"
-      );
-      const roteiristas = detalhes.data.credits.crew.filter(
-        (member) => member.job === "Screenplay" || member.job === "Writer"
-      );
-      const artistas = detalhes.data.credits.cast.slice(0, 5);
-
-      const tmdbLink = `https://www.themoviedb.org/movie/${filme.id}`;
-
-      const queryText = `
-    INSERT INTO filmes (titulo, tmdb_link, direcao, roteirista, artistas)
-    VALUES ($1, $2, $3, $4, $5) RETURNING *
-  `;
-      const queryValues = [
-        filme.title,
-        tmdbLink,
-        diretores.map((d) => d.name).join(", "),
-        roteiristas.map((r) => r.name).join(", "),
-        artistas.map((a) => a.name).join(", "),
-      ];
-
-      const result = await pool.query(queryText, queryValues);
-      const savedFilm = result.rows[0];
-
-      return res.json(savedFilm);
-    } catch (error) {
-      console.error(error);
-      return res.status(500).json({ mensagem: "Erro ao buscar filme" });
-    }
-  }
+  async (req, res) => MovieController.createFilme(req, res)
 );
 
 // Rota protegida para obter detalhes de um filme
@@ -145,25 +70,7 @@ server.get(
   authenticateToken,
   authorize(["admin", "editor", "cliente"]),
   async (req, res) => {
-    const { id } = req.params;
-
-    try {
-      const result = await pool.query("SELECT * FROM filmes WHERE id = $1", [
-        id,
-      ]);
-
-      if (result.rows.length === 0) {
-        return res.status(404).json({ mensagem: "Filme não encontrado" });
-      }
-
-      const filme = result.rows[0];
-      return res.json(filme);
-    } catch (error) {
-      console.error("Erro ao buscar filme:", error);
-      return res
-        .status(500)
-        .json({ mensagem: "Erro ao buscar filme", erro: error.message });
-    }
+    MovieController.getMovieId(req, res);
   }
 );
 
@@ -173,24 +80,7 @@ server.put(
   authenticateToken,
   authorize(["admin", "editor"]),
   async (req, res) => {
-    const { id } = req.params;
-    const { titulo } = req.body;
-
-    try {
-      const result = await pool.query(
-        "UPDATE filmes SET titulo = $1 WHERE id = $2",
-        [titulo, id]
-      );
-
-      if (result.rowCount === 0) {
-        return res.status(404).json({ mensagem: "Filme não encontrado" });
-      }
-
-      return res.json({ mensagem: "Filme atualizado com sucesso" });
-    } catch (error) {
-      console.error("Erro ao editar filme:", error);
-      return res.status(500).json({ mensagem: "Erro ao editar filme" });
-    }
+    MovieController.updateMovie(req, res);
   }
 );
 
@@ -307,36 +197,7 @@ server.get(
 );
 // Rota para scrapping
 server.post("/scrapper", async (req, res) => {
-  try {
-    const url = "https://www.adorocinema.com/noticias/filmes/";
-    request(url, (error, response, html) => {
-      if (!error && response.statusCode == 200) {
-        const $ = cheerio.load(html);
-
-        const noticias = [];
-        $(".news-card")
-          .slice(0, 10)
-          .each((index, element) => {
-            const titulo = $(element).find(".meta-title-link").text().trim();
-            const linkDaImagem = $(element).find(".thumbnail-img").attr("src");
-            const linkDoConteudo = $(element)
-              .find(".meta-title-link")
-              .attr("href");
-            noticias.push({
-              titulo,
-              linkDaImagem,
-              linkDoConteudo: `https://www.adorocinema.com${linkDoConteudo}`,
-            });
-          });
-        return res.json({
-          noticias,
-        });
-      }
-    });
-  } catch (error) {
-    console.error("Erro ao fazer scrapping:", error);
-    return res.status(500).json({ mensagem: "Erro ao fazer scrapping" });
-  }
+  ScrapperController.scrapperNews(req, res);
 });
 
 server.listen(3000, () => {
