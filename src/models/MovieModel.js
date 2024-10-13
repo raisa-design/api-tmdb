@@ -39,7 +39,21 @@ class MovieModel {
     return resultMovie;
   }
 
-  // async findByAll() {}
+  async countMovies() {
+    const countResult = await pool.query("SELECT COUNT(*) FROM filmes");
+    const countFilmes = parseInt(countResult.rows[0].count, 10);
+
+    return countFilmes;
+  }
+
+  async getMoviesPagination(limit, offset) {
+    // Buscar os filmes com paginação e ordenação
+    const result = await pool.query(
+      "SELECT * FROM filmes ORDER BY id ASC LIMIT $1 OFFSET $2",
+      [limit, offset]
+    );
+    return result.rows;
+  }
 }
 
 module.exports = MovieModel;
