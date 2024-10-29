@@ -30,11 +30,17 @@ module.exports = function (server) {
 
   // Rota para registrar um novo usuário
   server.post("/register", async (req, res) =>
+    // #swagger.tags = ['User']
+    // #swagger.description = 'Endpoint para criar um usuário.'
     UserController.register(req, res)
   );
 
   // Rota de login para gerar o token JWT
-  server.post("/login", async (req, res) => UserController.login(req, res));
+  server.post("/login", async (req, res) =>
+    // #swagger.tags = ['User']
+    // #swagger.description = 'Endpoint para logar um usuário.'
+    UserController.login(req, res)
+  );
 
   // Middleware para verificar permissões
   const authorize = (roles) => {
@@ -46,17 +52,16 @@ module.exports = function (server) {
     };
   };
 
-  server.get("/", (req, res) => {
-    return res.json({ mensagem: "Hello World" });
-  });
-
   // Rota protegida
 
   server.post(
     "/filmes",
     authenticateToken,
     authorize(["admin"]),
-    async (req, res) => MovieController.createFilme(req, res)
+    async (req, res) =>
+      // #swagger.tags = ['Movie']
+      // #swagger.description = 'Endpoint para cadastrar filme.'
+      MovieController.createFilme(req, res)
   );
 
   // Rota protegida para obter detalhes de um filme
@@ -64,9 +69,12 @@ module.exports = function (server) {
     "/filmes/:id",
     authenticateToken,
     authorize(["admin", "editor", "cliente"]),
-    async (req, res) => {
-      MovieController.getMovieId(req, res);
-    }
+    async (req, res) =>
+      // #swagger.tags = ['Movie']
+      // #swagger.description = 'Endpoint para obter filme específico.'
+      {
+        MovieController.getMovieId(req, res);
+      }
   );
 
   // Rota protegida para editar um filme (admin e editor podem editar)
@@ -74,9 +82,12 @@ module.exports = function (server) {
     "/filmes/:id",
     authenticateToken,
     authorize(["admin", "editor"]),
-    async (req, res) => {
-      MovieController.updateMovie(req, res);
-    }
+    async (req, res) =>
+      // #swagger.tags = ['Movie']
+      // #swagger.description = 'Endpoint para editar filme específico.'
+      {
+        MovieController.updateMovie(req, res);
+      }
   );
 
   // Rota protegida para obter filmes com paginação
@@ -84,12 +95,19 @@ module.exports = function (server) {
     "/filmes",
     authenticateToken,
     authorize(["admin", "editor", "cliente"]),
-    async (req, res) => {
-      MovieController.getMovieAll(req, res);
-    }
+    async (req, res) =>
+      // #swagger.tags = ['Movie']
+      // #swagger.description = 'Endpoint para obter todos os filmes.'
+      {
+        MovieController.getMovieAll(req, res);
+      }
   );
   // Rota para scrapping
-  server.post("/scrapper", async (req, res) => {
-    ScrapperController.scrapperNews(req, res);
-  });
+  server.post("/scrapper", async (req, res) =>
+    // #swagger.tags = ['News']
+    // #swagger.description = 'Endpoint para obter filme específico.'
+    {
+      ScrapperController.scrapperNews(req, res);
+    }
+  );
 };
