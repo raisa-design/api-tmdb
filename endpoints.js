@@ -36,10 +36,16 @@ module.exports = function (server) {
   );
 
   // Rota de login para gerar o token JWT
-  server.post("/login", async (req, res) =>
-    // #swagger.tags = ['User']
-    // #swagger.description = 'Endpoint para logar um usuário.'
-    UserController.login(req, res)
+  server.post(
+    "/login",
+    async (req, res) =>
+      // #swagger.tags = ['User']
+      // #swagger.description = 'Endpoint para logar um usuário.'
+      UserController.login(req, res)
+    /* #swagger.responses[200] = { 
+               schema: { $ref: "#/definitions/User" },
+               description: 'Usuário encontrado.' 
+        } */
   );
 
   // Middleware para verificar permissões
