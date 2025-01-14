@@ -1,6 +1,5 @@
 const app = require("express")();
 const http = require("http");
-const jwt = require("jsonwebtoken");
 const swaggerUi = require("swagger-ui-express");
 const swaggerFile = require("./swagger_output.json");
 

@@ -1,7 +1,7 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
-const server = express();
+
 const UserController = require("./src/controllers/UserController");
 const MovieController = require("./src/controllers/MovieController");
 const ScrapperController = require("./src/controllers/ScrapperController");
