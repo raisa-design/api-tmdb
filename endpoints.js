@@ -1,12 +1,13 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
+require("dotenv").config();
 const server = express();
 const UserController = require("./src/controllers/UserController");
 const MovieController = require("./src/controllers/MovieController");
 const ScrapperController = require("./src/controllers/ScrapperController");
 
 module.exports = function (server) {
-  const JWT_SECRET = "your_jwt_secret_key"; // Chave secreta para o JWT
+  const JWT_SECRET = process.env.JWT_SECRET;
   server.use(express.json());
 
   // Middleware para verificar o token JWT
