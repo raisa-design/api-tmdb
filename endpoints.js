@@ -1,12 +1,13 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
-const server = express();
+require("dotenv").config();
+
 const UserController = require("./src/controllers/UserController");
 const MovieController = require("./src/controllers/MovieController");
 const ScrapperController = require("./src/controllers/ScrapperController");
 
 module.exports = function (server) {
-  const JWT_SECRET = "your_jwt_secret_key"; // Chave secreta para o JWT
+  const JWT_SECRET = process.env.JWT_SECRET;
   server.use(express.json());
 
   // Middleware para verificar o token JWT
@@ -36,10 +37,16 @@ module.exports = function (server) {
   );
 
   // Rota de login para gerar o token JWT
-  server.post("/login", async (req, res) =>
-    // #swagger.tags = ['User']
-    // #swagger.description = 'Endpoint para logar um usuário.'
-    UserController.login(req, res)
+  server.post(
+    "/login",
+    async (req, res) =>
+      // #swagger.tags = ['User']
+      // #swagger.description = 'Endpoint para logar um usuário.'
+      UserController.login(req, res)
+    /* #swagger.responses[200] = { 
+               schema: { $ref: "#/definitions/User" },
+               description: 'Usuário encontrado.' 
+        } */
   );
 
   // Middleware para verificar permissões
