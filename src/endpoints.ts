@@ -1,33 +1,50 @@
-const express = require("express");
+import express, { Express,RequestHandler } from "express";
 const jwt = require("jsonwebtoken");
+import { JwtPayload } from 'jsonwebtoken';
 require("dotenv").config();
 
-const UserController = require("./src/controllers/UserController");
-const MovieController = require("./src/controllers/MovieController");
-const ScrapperController = require("./src/controllers/ScrapperController");
+const UserController = require("./controllers/UserController");
+const ScrapperController = require("./controllers/ScrapperController");
+import authorize from "./middlewares/authorize";
+import MovieController from "./infra/webserver/controllers/MovieController";
 
-module.exports = function (server) {
+interface UserPayload extends JwtPayload {
+  id: string;
+  role: string;
+  email: string;
+}
+declare global {
+  namespace Express {
+    interface Request {
+      user?: UserPayload;
+    }
+  }
+}
+module.exports = function (server: Express) {
   const JWT_SECRET = process.env.JWT_SECRET;
   server.use(express.json());
+  
 
   // Middleware para verificar o token JWT
-  const authenticateToken = (req, res, next) => {
-    const authHeader = req.headers["authorization"];
-    const token = authHeader && authHeader.split(" ")[1];
+    const authenticateToken: RequestHandler = (req, res, next) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
 
-    if (!token) {
-      return res.status(401).json({ mensagem: "Token não fornecido" });
+  if (!token) {
+    res.status(401).json({ mensagem: "Token não fornecido" });
+    return;
+  }
+
+  jwt.verify(token, JWT_SECRET, (err: Error | null, user: UserPayload | undefined) => {
+    if (err || !user) {
+      res.status(403).json({ mensagem: "Token inválido" });
+      return;
     }
 
-    jwt.verify(token, JWT_SECRET, (err, user) => {
-      if (err) {
-        return res.status(403).json({ mensagem: "Token inválido" });
-      }
-
-      req.user = user;
-      next();
-    });
-  };
+    req.user = user;
+    next();
+  });
+};
 
   // Rota para registrar um novo usuário
   server.post("/register", async (req, res) =>
@@ -49,18 +66,7 @@ module.exports = function (server) {
         } */
   );
 
-  // Middleware para verificar permissões
-  const authorize = (roles) => {
-    return (req, res, next) => {
-      if (!roles.includes(req.user.role)) {
-        return res.status(403).json({ mensagem: "Permissão negada" });
-      }
-      next();
-    };
-  };
-
   // Rota protegida
-
   server.post(
     "/filmes",
     authenticateToken,
@@ -68,7 +74,9 @@ module.exports = function (server) {
     async (req, res) =>
       // #swagger.tags = ['Movie']
       // #swagger.description = 'Endpoint para cadastrar filme.'
-      MovieController.createFilme(req, res)
+      {
+        MovieController.createFilme(req, res);
+      }
   );
 
   // Rota protegida para obter detalhes de um filme
@@ -80,7 +88,7 @@ module.exports = function (server) {
       // #swagger.tags = ['Movie']
       // #swagger.description = 'Endpoint para obter filme específico.'
       {
-        MovieController.getMovieId(req, res);
+        //MovieController.getMovieId(req, res);
       }
   );
 
@@ -93,7 +101,7 @@ module.exports = function (server) {
       // #swagger.tags = ['Movie']
       // #swagger.description = 'Endpoint para editar filme específico.'
       {
-        MovieController.updateMovie(req, res);
+        //MovieController.updateMovie(req, res);
       }
   );
 
@@ -106,7 +114,7 @@ module.exports = function (server) {
       // #swagger.tags = ['Movie']
       // #swagger.description = 'Endpoint para obter todos os filmes.'
       {
-        MovieController.getMovieAll(req, res);
+        //MovieController.getMovieAll(req, res);
       }
   );
   // Rota para scrapping

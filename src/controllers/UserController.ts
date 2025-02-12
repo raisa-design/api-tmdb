@@ -1,13 +1,14 @@
 const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
+import { Request, Response } from 'express';
+const jwtToken = require("jsonwebtoken");
 require("dotenv").config();
-const UserModel = require("../models/UserModel");
+import UserModel from "../models/UserModel";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const userModel = new UserModel();
 
 class UserController {
-  async register(req, res) {
+  async register(req: Request, res: Response) {
     const { nome, email, senha, role } = req.body;
 
     if (!nome || !email || !senha || !role) {
@@ -22,7 +23,6 @@ class UserController {
     }
 
     try {
-      const userModel = new UserModel();
       // Verificar se o email já está em uso
       if (await userModel.userExists(email)) {
         return res.status(400).json({ mensagem: "Email já cadastrado" });
@@ -46,7 +46,7 @@ class UserController {
         email: novoUsuario.email,
         role: novoUsuario.role,
       };
-      const accessToken = jwt.sign(user, JWT_SECRET, { expiresIn: "1h" });
+      const accessToken = jwtToken.sign(user, JWT_SECRET, { expiresIn: "1h" });
 
       return res.status(201).json({ accessToken });
     } catch (error) {
@@ -55,7 +55,7 @@ class UserController {
     }
   }
 
-  async login(req, res) {
+   async login(req: Request, res: Response) {
     try {
       const { email, senha } = req.body;
 
@@ -80,7 +80,7 @@ class UserController {
         role: usuario.role,
       };
 
-      const accessToken = jwt.sign(user, JWT_SECRET, { expiresIn: "1h" });
+      const accessToken = jwtToken.sign(user, JWT_SECRET, { expiresIn: "1h" });
       return res.json({ accessToken });
     } catch (error) {
       console.error("Erro ao fazer login:", error);
