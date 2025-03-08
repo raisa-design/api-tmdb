@@ -19,4 +19,23 @@ export class MovieRepository implements IMovieRepository {
     const result = await pool.query(queryText, queryValues);
     return result.rows[0];
   }
+  async findById(id: number): Promise<Movie | null> {
+    const queryText = "SELECT * FROM filmes WHERE id = $1";
+    const result = await pool.query(queryText, [id]);
+    return result.rows.length ? result.rows[0] : null;
+  }
+  async count(): Promise<number> {
+    const result = await pool.query('SELECT COUNT(*) FROM filmes');
+    return parseInt(result.rows[0].count);
+  }
+
+  async getPaginated(limit: number, offset: number): Promise<Movie[]> {
+    const result = await pool.query(
+      'SELECT * FROM filmes ORDER BY id ASC LIMIT $1 OFFSET $2',
+      [limit, offset]
+    );
+    return result.rows;
+  }
+  
+  
 }

@@ -88,7 +88,7 @@ module.exports = function (server: Express) {
       // #swagger.tags = ['Movie']
       // #swagger.description = 'Endpoint para obter filme específico.'
       {
-        //MovieController.getMovieId(req, res);
+        MovieController.getMovieById(req, res);
       }
   );
 
@@ -101,7 +101,7 @@ module.exports = function (server: Express) {
       // #swagger.tags = ['Movie']
       // #swagger.description = 'Endpoint para editar filme específico.'
       {
-        //MovieController.updateMovie(req, res);
+        MovieController.updateMovie(req, res);
       }
   );
 
@@ -114,7 +114,7 @@ module.exports = function (server: Express) {
       // #swagger.tags = ['Movie']
       // #swagger.description = 'Endpoint para obter todos os filmes.'
       {
-        //MovieController.getMovieAll(req, res);
+        MovieController.getMovieAll(req, res);
       }
   );
   // Rota para scrapping

@@ -6,7 +6,7 @@ import { TMDBResource } from "../../../types/TMDBResource";
 
 const TMDB_API_KEY = "79b3ceee03442ea90980fe372e0b8fdc";
 
-export class CreateMovieUseCase implements UseCase {
+export class CreateMovieUseCase implements UseCase<void> {
   constructor(private movieRepository: IMovieRepository) {}
 
   async execute(title: string) { 

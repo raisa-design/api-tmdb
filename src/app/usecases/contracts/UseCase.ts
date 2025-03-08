@@ -1,3 +1,3 @@
-export interface UseCase {
-    execute(...args: any[]): Promise<void>;
+export interface UseCase<T> {
+    execute(...args: any[]): Promise<T>;
 }
